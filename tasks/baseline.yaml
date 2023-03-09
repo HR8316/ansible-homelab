@@ -1,39 +1,35 @@
-- name: Baseline tasks for server
-- hosts: all
-- tasks:
+- name: Update packages
+  ansible.builtin.dnf:
+    update_cache: true
+    name: "*"
+    state: latest
+  become: true
+  when: ansible_distribution == "Fedora"
 
-  - name: Update packages
-    ansible.builtin.dnf:
-      update_cache: true
-      name: "*"
-      state: latest
-    become: true
-    when: ansible_distribution == "Fedora"
+- name: Install packages
+  ansible.builtin.dnf:
+    name:
+      - dnf-autmatic
+      - cockpit-podman
+      - cockpit-machines
+    state: latest
 
-  - name: Install packages
-    ansible.builtin.dnf:
-      name:
-        - dnf-autmatic
-        - cockpit-podman
-        - cockpit-machines
-      state: latest
+- name: Disable SSH password auth
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^#PasswordAuthentication yes"
+    line: "#PasswordAuthentication no"
+  register: sshd_config
 
-  - name: Disable SSH password auth
-    lineinfile:
-      dest: /etc/ssh/sshd_config
-      regexp: "^#PasswordAuthentication yes"
-      line: "#PasswordAuthentication no"
-    register: sshd_config
+- name: Enable passwordless sudo for user 'ansible'
+  lineinfile:
+    dest: /etc/sudoers.d/ansible
+    regexp: "^%wheel"
+    line: "ansible ALL=(ALL) NOPASSWD: ALL"
+    validate: "/usr/sbin/visudo -cf %s"
 
-  - name: Enable passwordless sudo for user 'ansible'
-    lineinfile:
-      dest: /etc/sudoers.d/ansible
-      regexp: "^%wheel"
-      line: "ansible ALL=(ALL) NOPASSWD: ALL"
-      validate: "/usr/sbin/visudo -cf %s"
-
-  - name: Restart SSHD daemon
-    service:
-      name: sshd
-      state: restarted
-    when: sshd_config.changed
+- name: Restart SSHD daemon
+  service:
+    name: sshd
+    state: restarted
+  when: sshd_config.changed
