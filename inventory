@@ -1,1 +1,4 @@
+[servers-physical]
 homeserver.myhomelan.uk
+
+[servers-virtual]
