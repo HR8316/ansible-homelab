@@ -1,0 +1,79 @@
+- name: Play for configuring server baseline
+  hosts: all
+  become: true
+  tasks:
+
+    - name: Update packages
+      ansible.builtin.dnf:
+        update_cache: true
+        name: "*"
+        state: latest
+      when: ansible_distribution == "Fedora"
+
+    - name: Disable ssh password auth
+      ansible.builtin.lineinfile:
+        dest: /etc/ssh/sshd_config
+        regexp: "^#PasswordAuthentication yes"
+        line: "#PasswordAuthentication no"
+      register: sshd_config
+
+    - name: Add sudoers file for user 'ansible'
+      ansible.builtin.copy:
+        src: sudoers_ansible
+        dest: "/etc/sudoers.d/ansible"
+        owner: root
+        group: root
+        mode: 0440
+
+    - name: Disable password logon for user 'ansible'
+      ansible.builtin.user:
+        name: ansible
+        password_lock: true
+
+    - name: Create user 'admin'
+      ansible.builtin.user:
+        name: admin
+        password:
+        groups:
+          - wheel
+        comment: admin
+
+    - name: Add sudoers file for user 'admin'
+      ansible.builtin.copy:
+        src: sudoers_admin
+        dest: "/etc/sudoers.d/admin"
+        owner: root
+        group: root
+        mode: 0440
+
+    - name: Restart sshd daemon
+      ansible.builtin.service:
+        name: sshd
+        state: restarted
+      when: sshd_config.changed
+
+    - name: Install packages
+      ansible.builtin.dnf:
+        name:
+          - cockpit-podman
+          - cockpit-machines
+          - dnf-automatic
+          - libvirt
+
+    - name: Start libvirtd
+      ansible.builtin.service:
+        name: libvirtd.service
+        enabled: true
+        state: started
+
+    - name: Start podman
+      ansible.builtin.systemd:
+        name: podman.service
+        enabled: true
+        state: started
+
+    - name: Start dnf-automatic
+      ansible.builtin.systemd:
+        name: dnf-automatic.timer
+        enabled: true
+        state: started
